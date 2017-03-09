@@ -1,6 +1,6 @@
 "use strict"; // good practice - see https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Strict_mode
 ////////////////////////////////////////////////////////////////////////////////
-// Basic robot arm: forearm and upper arm
+// Robot hand exercise: add a second grabber and have it respond
 ////////////////////////////////////////////////////////////////////////////////
 
 /*global THREE, Coordinates, $, document, window, dat*/
@@ -13,7 +13,7 @@ var gridY = false;
 var gridZ = false;
 var axes = true;
 var ground = true;
-var arm, forearm;
+var arm, forearm, rectangle;
 
 function fillScene() {
 	scene = new THREE.Scene();
@@ -21,13 +21,13 @@ function fillScene() {
 
 	// LIGHTS
 	var ambientLight = new THREE.AmbientLight( 0x222222 );
-
+	
 	var light = new THREE.DirectionalLight( 0xFFFFFF, 1.0 );
 	light.position.set( 200, 400, 500 );
 	
 	var light2 = new THREE.DirectionalLight( 0xFFFFFF, 1.0 );
 	light2.position.set( -500, 250, -200 );
-
+	
 	scene.add(ambientLight);
 	scene.add(light);
 	scene.add(light2);
@@ -51,8 +51,9 @@ function fillScene() {
 	var robotBaseMaterial = new THREE.MeshPhongMaterial( { color: 0x6E23BB, specular: 0x6E23BB, shininess: 20 } );
 	var robotForearmMaterial = new THREE.MeshPhongMaterial( { color: 0xF4C154, specular: 0xF4C154, shininess: 100 } );
 	var robotUpperArmMaterial = new THREE.MeshPhongMaterial( { color: 0x95E4FB, specular: 0x95E4FB, shininess: 100 } );
-
-	var torus = new THREE.Mesh( 
+	var robotHandLeftMaterial = new THREE.MeshPhongMaterial( { color: 0xFF6600, specular: 0xFF6633, shininess: 20 } );
+	
+	var torus = new THREE.Mesh(
 		new THREE.TorusGeometry( 22, 15, 32, 32 ), robotBaseMaterial );
 	torus.rotation.x = 90 * Math.PI/180;
 	scene.add( torus );
@@ -63,35 +64,51 @@ function fillScene() {
 	createRobotExtender( forearm, faLength, robotForearmMaterial );
 
 	arm = new THREE.Object3D();
-	var uaLength = 120;	
-	
+	var uaLength = 120;
+
 	createRobotCrane( arm, uaLength, robotUpperArmMaterial );
-	
+
 	// Move the forearm itself to the end of the upper arm.
-	forearm.position.y = uaLength;	
+	forearm.position.y = uaLength;
 	arm.add( forearm );
-	
+
 	scene.add( arm );
+
+	var handLength = 38;
+
+	rectangle = new THREE.Object3D();
+	createRectangle( rectangle, handLength, robotHandLeftMaterial );
+	// Move the hand part to the end of the forearm.
+	rectangle.position.y = faLength;
+	forearm.add( rectangle );
+}
+
+function createRectangle( part, length, material )
+{
+	var box = new THREE.Mesh(
+		new THREE.CubeGeometry( 120, length, 10 ), material );
+	box.position.y = length/2;
+	part.add( box );
 }
 
 function createRobotExtender( part, length, material )
 {
-	var cylinder = new THREE.Mesh( 
+	var cylinder = new THREE.Mesh(
 		new THREE.CylinderGeometry( 22, 22, 6, 32 ), material );
 	part.add( cylinder );
 
 	var i;
 	for ( i = 0; i < 4; i++ )
 	{
-		var box = new THREE.Mesh( 
+		var box = new THREE.Mesh(
 			new THREE.CubeGeometry( 4, length, 4 ), material );
 		box.position.x = (i < 2) ? -8 : 8;
 		box.position.y = length/2;
 		box.position.z = (i%2) ? -8 : 8;
 		part.add( box );
 	}
-	
-	cylinder = new THREE.Mesh( 
+
+	cylinder = new THREE.Mesh(
 		new THREE.CylinderGeometry( 15, 15, 40, 32 ), material );
 	cylinder.rotation.x = 90 * Math.PI/180;
 	cylinder.position.y = length;
@@ -100,12 +117,12 @@ function createRobotExtender( part, length, material )
 
 function createRobotCrane( part, length, material )
 {
-	var box = new THREE.Mesh( 
+	var box = new THREE.Mesh(
 		new THREE.CubeGeometry( 18, length, 18 ), material );
 	box.position.y = length/2;
 	part.add( box );
-	
-	var sphere = new THREE.Mesh( 
+
+	var sphere = new THREE.Mesh(
 		new THREE.SphereGeometry( 20, 32, 16 ), material );
 	// place sphere at end of arm
 	sphere.position.y = length;
@@ -133,7 +150,7 @@ function init() {
 	// CONTROLS
 	cameraControls = new THREE.OrbitAndPanControls(camera, renderer.domElement);
 	cameraControls.target.set(0,100,0);
-	
+
 	fillScene();
 
 }
@@ -156,18 +173,20 @@ function render() {
 		axes = effectController.newAxes;
 
 		fillScene();
+
 	}
 
 	arm.rotation.y = effectController.uy * Math.PI/180;	// yaw
 	arm.rotation.z = effectController.uz * Math.PI/180;	// roll
-	
+
 	forearm.rotation.y = effectController.fy * Math.PI/180;	// yaw
 	forearm.rotation.z = effectController.fz * Math.PI/180;	// roll
-	
+
+	rectangle.rotation.z = effectController.hz * Math.PI/180;	// yaw
+	rectangle.position.z = effectController.htz;	// translate
+
 	renderer.render(scene, camera);
 }
-
-
 
 function setupGui() {
 
@@ -178,12 +197,15 @@ function setupGui() {
 		newGridZ: gridZ,
 		newGround: ground,
 		newAxes: axes,
-		
+
 		uy: 70.0,
 		uz: -15.0,
 
 		fy: 10.0,
-		fz: 60.0
+		fz: 60.0,
+
+		hz: 30.0,
+		htz: 12.0
 	};
 
 	var gui = new dat.GUI();
@@ -198,6 +220,8 @@ function setupGui() {
 	h.add(effectController, "uz", -45.0, 45.0, 0.025).name("Upper arm z");
 	h.add(effectController, "fy", -180.0, 180.0, 0.025).name("Forearm y");
 	h.add(effectController, "fz", -120.0, 120.0, 0.025).name("Forearm z");
+	h.add(effectController, "hz", -45.0, 45.0, 0.025).name("Hand z");
+	h.add(effectController, "htz", 2.0, 17.0, 0.025).name("Hand spread");
 }
 
 function takeScreenshot() {
@@ -215,6 +239,7 @@ function takeScreenshot() {
 	var imgTarget = window.open('', 'For grading script');
 	imgTarget.document.write('<img src="'+img1+'"/><img src="'+img2+'"/>');
 }
+
 
 init();
 setupGui();
